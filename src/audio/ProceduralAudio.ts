@@ -3,12 +3,18 @@ export class ProceduralAudio {
   private master: GainNode | null = null
   private filter: BiquadFilterNode | null = null
   private noiseBuffer: AudioBuffer | null = null
+  private muted = false
+
+  setMuted(muted: boolean): void {
+    this.muted = muted
+    if (this.master && this.context) this.master.gain.setTargetAtTime(muted ? 0 : 0.2, this.context.currentTime, 0.03)
+  }
 
   async unlock(): Promise<void> {
     if (!this.context) {
       this.context = new AudioContext()
       this.master = this.context.createGain()
-      this.master.gain.value = 0.28
+      this.master.gain.value = this.muted ? 0 : 0.2
       this.filter = this.context.createBiquadFilter()
       this.filter.type = 'lowpass'
       this.filter.frequency.value = 18000

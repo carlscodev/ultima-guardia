@@ -93,6 +93,16 @@ export interface DebugTelemetry {
   enemies: number
   renderScale: number
   mode: 'canvas2d'
+  elapsed: number
+  screen: ScreenState
+  playerX: number
+  playerY: number
+  kills: number
+  wave: number
+  level: number
+  hp: number
+  pulseCooldown: number
+  weapon: WeaponKind
 }
 
 declare global {

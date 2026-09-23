@@ -1,25 +1,56 @@
 <script setup lang="ts">
+import { onMounted, ref } from 'vue'
+import { ArrowRight, ChevronsUp, Crosshair, Footprints, ShieldPlus, Target, Zap } from '@lucide/vue'
 import type { IUpgrade } from '@/types/game'
-defineProps<{ upgrades: readonly IUpgrade[] }>()
+
+const props = defineProps<{ upgrades: readonly IUpgrade[]; level: number }>()
 const emit = defineEmits<{ choose: [upgrade: IUpgrade] }>()
+const dialog = ref<HTMLDialogElement | null>(null)
+const icons = { fireRate: ChevronsUp, damage: Target, speed: Footprints, pulse: Zap, armor: ShieldPlus, range: Crosshair }
+const chooseKey = (event: KeyboardEvent): void => {
+  if (event.isComposing || event.keyCode === 229 || event.repeat) return
+  const upgrade = props.upgrades[Number(event.key) - 1]
+  if (upgrade) { event.preventDefault(); emit('choose', upgrade) }
+}
+onMounted(() => dialog.value?.showModal())
 </script>
 
 <template>
-  <div class="overlay">
+  <dialog ref="dialog" class="upgrade-dialog" aria-labelledby="upgrade-title" @cancel.prevent @keydown="chooseKey">
     <section class="panel">
-      <div class="tag">NEUROADAPTACIÓN DISPONIBLE</div>
-      <p class="kicker">PROTOCOLO DE SUPERVIVENCIA</p>
-      <h2>ELIGE UNA<br><em>VENTAJA.</em></h2>
+      <div class="level-tag"><ChevronsUp :size="17" /> NIVEL {{ level.toString().padStart(2, '0') }} ALCANZADO</div>
+      <h2 id="upgrade-title">ELIGE TU <em>VENTAJA.</em></h2>
+      <p class="upgrade-copy">Un poco más fuerte. Un poco más vivo. Elige cómo seguir.</p>
       <div class="cards">
-        <button v-for="upgrade in upgrades" :key="upgrade.id" @click="emit('choose', upgrade)">
-          <span>{{ upgrade.icon }}</span><small>MEJORA // {{ upgrade.id.toUpperCase() }}</small>
-          <strong>{{ upgrade.name }}</strong><p>{{ upgrade.description }}</p><i>INSTALAR →</i>
+        <button v-for="(upgrade, index) in upgrades" :key="upgrade.id" :autofocus="index === 0" @click="emit('choose', upgrade)">
+          <div class="card-top"><span class="upgrade-icon"><component :is="icons[upgrade.id]" :size="28" :stroke-width="1.4" /></span><kbd>{{ index + 1 }}</kbd></div>
+          <small>MEJORA TÁCTICA</small><strong>{{ upgrade.name }}</strong><p>{{ upgrade.description }}</p>
+          <span class="install">ELEGIR MEJORA <ArrowRight :size="15" /></span>
         </button>
       </div>
+      <p class="upgrade-note">LA PARTIDA ESTÁ EN PAUSA MIENTRAS ELIGES</p>
     </section>
-  </div>
+  </dialog>
 </template>
 
 <style scoped>
-.overlay{position:fixed;z-index:20;inset:0;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 50% 45%,#163027d9,#030a0bed);backdrop-filter:blur(9px)}.panel{width:min(930px,100%)}.tag,.kicker{text-align:center;font-size:9px;letter-spacing:3px;color:#9fb6ae}.tag{width:max-content;margin:auto;border:1px solid #b8ed8b55;padding:7px 11px;color:#caf49e}.kicker{margin-top:24px}h2{text-align:center;margin:5px 0 26px;font-size:clamp(37px,7vw,68px);line-height:.88;letter-spacing:-3px}h2 em{font-style:normal;color:#c6f290}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.cards button{position:relative;min-height:230px;padding:20px;text-align:left;color:#e9f2e8;background:linear-gradient(145deg,#14231fee,#0a1514ee);border:1px solid #bbf18b38;clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,0 100%)}.cards button:hover{transform:translateY(-5px);border-color:#c5f598;background:#1b3027;box-shadow:0 14px 45px #0008}.cards button>span{font-size:38px;color:#c8f698}.cards small{display:block;margin:15px 0 6px;color:#70867f;font-size:8px;letter-spacing:1.4px}.cards strong{font-size:15px;letter-spacing:.7px}.cards p{color:#9bada7;font-size:12px;line-height:1.5}.cards i{position:absolute;bottom:17px;font-style:normal;font-size:9px;letter-spacing:1.5px;color:#bce890}@media(max-width:650px){.cards{grid-template-columns:1fr}.cards button{min-height:120px}.cards button>span{float:left;margin-right:15px}.cards small{margin-top:4px}.cards i{display:none}h2{margin-bottom:16px}}
+.upgrade-dialog { width: 100%; height: 100%; max-width: none; max-height: none; padding: 30px; margin: 0; border: none; background: #0b130eeb; backdrop-filter: blur(7px); color: var(--foreground); }
+.upgrade-dialog[open] { display: grid; place-items: center; }.upgrade-dialog::backdrop { background: #070b08aa; }
+.panel { width: min(830px, 100%); }
+.level-tag { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 9px; letter-spacing: 2px; color: var(--accent); }
+h2 { font-size: clamp(42px, 6vw, 70px); text-align: center; line-height: 1; margin: 19px 0 12px; }h2 em { font-style: normal; color: var(--accent); }
+.upgrade-copy { text-align: center; color: var(--muted); font-size: 12px; line-height: 1.7; margin-bottom: 32px; }
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+.cards button { display: flex; flex-direction: column; min-height: 259px; text-align: left; padding: 24px; color: var(--foreground); border: 1px solid #c2d5b830; background: #152016; border-radius: 2px; }
+.cards button:hover { border-color: var(--accent); background: #1c2b1b; transform: translateY(-4px); }
+.card-top { display: flex; align-items: flex-start; justify-content: space-between; width: 100%; margin-bottom: 24px; }
+.upgrade-icon { display: grid; place-items: center; width: 45px; height: 45px; border: 1px solid #c2eb8933; color: var(--accent); background: var(--accent-soft); }
+kbd { font-size: 8px; border: 1px solid #c2d5b830; color: var(--subtle); padding: 4px 7px; }
+.cards small { font-size: 7px; letter-spacing: 1.5px; color: var(--subtle); margin-bottom: 6px; }
+.cards strong { font-family: var(--display); font-size: 24px; font-weight: 700; }
+.cards p { font-size: 11px; line-height: 1.7; color: var(--muted); margin: 10px 0 25px; }
+.install { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding-top: 15px; margin-top: auto; border-top: 1px solid var(--border); font-size: 8px; letter-spacing: 1px; color: var(--accent); }
+.upgrade-note { color: var(--subtle); font-size: 7px; letter-spacing: 1.5px; text-align: center; margin-top: 25px; }
+@media (max-width: 650px) { .upgrade-dialog { padding: 22px; }.cards { grid-template-columns: 1fr; gap: 10px; }.cards button { min-height: 115px; padding: 16px 17px 16px 84px; position: relative; }.card-top { position: absolute; width: 100%; left: 17px; top: 18px; margin: 0; }.card-top kbd { margin-right: 34px; }.cards strong { font-size: 23px; }.cards p { margin-bottom: 0; font-size: 10px; }.cards small { font-size: 6px; padding-right: 25px; }.install { display: none; }h2 { font-size: 42px; margin-top: 14px; }.upgrade-copy { font-size: 11px; margin-bottom: 24px; }.upgrade-note { font-size: 6px; }.level-tag { font-size: 8px; } }
+@media (max-height: 500px) and (min-width: 651px) { .upgrade-dialog { padding: 22px; }h2 { font-size: 45px; margin: 12px 0 8px; }.upgrade-copy { margin-bottom: 20px; }.cards button { min-height: 210px; padding: 19px; }.card-top { margin-bottom: 15px; }.upgrade-note { margin-top: 17px; } }
 </style>

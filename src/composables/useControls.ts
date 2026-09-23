@@ -23,7 +23,9 @@ export function useControls(): ControlsApi {
     state.moveY = Math.max(-1, Math.min(1, keyboardY + joystickY))
   }
   const keydown = (event: KeyboardEvent): void => {
+    if (event.isComposing || event.keyCode === 229 || (event.target instanceof HTMLElement && event.target.closest('dialog, input, textarea, select'))) return
     const key = event.key.toLowerCase()
+    if (key === ' ' && event.target instanceof HTMLButtonElement) return
     if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' ', '1', '2'].includes(key)) event.preventDefault()
     keys.add(key)
     if (key === ' ' && !event.repeat) state.pulseQueued = true
