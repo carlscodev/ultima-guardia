@@ -1,12 +1,12 @@
 import { ProceduralAudio } from '@/audio/ProceduralAudio'
 import { EnemySystem } from '@/engine/systems/EnemySystem'
+import { CityScene, type SceneView } from '@/engine/CityScene'
 import { clamp, distanceSquared, randomRange } from '@/engine/math'
 import type { EngineEvents, GameState, InputState, IPlayer, IUpgrade, IWeapon, IZombie, ScreenState, WeaponKind, ZombieKind } from '@/types/game'
 
 interface Projectile { active: boolean; x: number; y: number; previousX: number; previousY: number; vx: number; vy: number; life: number; damage: number }
 interface Pickup { active: boolean; x: number; y: number; amount: number; medical: boolean; life: number; phase: number }
 interface Particle { active: boolean; x: number; y: number; height: number; vx: number; vy: number; vertical: number; life: number; maxLife: number; color: string }
-interface Debris { x: number; y: number; size: number; lit: boolean }
 
 const FIXED_STEP = 1 / 60
 const WORLD = 1200
@@ -37,7 +37,9 @@ export class GameEngine {
   private readonly pickups = Array.from({ length: MAX_PICKUPS }, (): Pickup => ({ active: false, x: 0, y: 0, amount: 1, medical: false, life: 0, phase: 0 }))
   private readonly particles = Array.from({ length: MAX_PARTICLES }, (): Particle => ({ active: false, x: 0, y: 0, height: 0, vx: 0, vy: 0, vertical: 0, life: 0, maxLife: 1, color: '#fff' }))
   private readonly visibleEnemies: IZombie[] = []
-  private readonly debris: Debris[]
+  private readonly city = new CityScene()
+  private readonly sceneView: SceneView = { width: 640, height: 360, scale: 1, cameraX: WORLD / 2, cameraY: WORLD / 2 }
+  private readonly reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   private readonly state: GameState
   private player: IPlayer
   private animationFrame = 0
@@ -78,25 +80,33 @@ export class GameEngine {
     this.context.imageSmoothingEnabled = false
     this.player = this.createPlayer()
     this.state = this.createState()
-    let seed = 9137
-    const seeded = (): number => { seed = seed * 16807 % 2147483647; return seed / 2147483647 }
-    this.debris = Array.from({ length: 360 }, (): Debris => ({ x: seeded() * WORLD, y: seeded() * WORLD, size: 1 + seeded() * 5, lit: seeded() > 0.7 }))
     this.resize()
     this.publishHud()
     this.render()
   }
 
-  async start(): Promise<void> {
-    await this.audio.unlock()
+  start(): void {
+    void this.audio.unlock().catch(() => this.audio.setMuted(true))
     this.audio.setMuffled(false)
     this.reset()
-    this.setScreen('playing')
     this.nextWave()
+    this.setScreen('playing')
     if (!this.loopStarted) {
       this.loopStarted = true
       this.lastFrame = performance.now()
       this.loop(this.lastFrame)
     } else this.lastFrame = performance.now()
+  }
+
+  setMuted(muted: boolean): void { this.audio.setMuted(muted) }
+
+  returnToMenu(): void {
+    this.audio.setMuffled(true)
+    cancelAnimationFrame(this.animationFrame)
+    this.loopStarted = false
+    this.reset()
+    this.setScreen('menu')
+    this.render()
   }
 
   togglePause(): void {
@@ -125,10 +135,10 @@ export class GameEngine {
     this.width = Math.max(320, Math.round(cssWidth * this.renderScale))
     this.height = Math.max(240, Math.round(cssHeight * this.renderScale))
     this.canvas.width = this.width; this.canvas.height = this.height
-    this.projectionScale = Math.min(this.width / 720, this.height / 640)
+    this.projectionScale = cssWidth < 650 ? Math.min(this.width / 390, this.height / 520) : Math.min(this.width / 620, this.height / 430)
     this.context.imageSmoothingEnabled = false
-    this.vignette = this.context.createRadialGradient(this.width / 2, this.height / 2, Math.min(this.width, this.height) * 0.12, this.width / 2, this.height / 2, Math.max(this.width, this.height) * 0.68)
-    this.vignette.addColorStop(0, '#07191b00'); this.vignette.addColorStop(0.58, '#06151922'); this.vignette.addColorStop(1, '#020810d5')
+    this.vignette = this.context.createRadialGradient(this.width / 2, this.height / 2, Math.min(this.width, this.height) * 0.1, this.width / 2, this.height / 2, Math.max(this.width, this.height) * 0.65)
+    this.vignette.addColorStop(0, '#08160f00'); this.vignette.addColorStop(0.52, '#08160f18'); this.vignette.addColorStop(1, '#050d0bdd')
   }
 
   dispose(): void {
@@ -149,12 +159,12 @@ export class GameEngine {
       this.fpsFrames = 0; this.fpsTime = 0
     }
     if (this.qualityTime >= 3) { this.adaptQuality(); this.qualityTime = 0 }
-    if (this.state.screen === 'playing') {
+    if (this.state.screen === 'playing' && !document.hidden) {
       this.accumulator = Math.min(this.accumulator + rawDelta, FIXED_STEP * 5)
-      while (this.accumulator >= FIXED_STEP) { this.update(FIXED_STEP); this.accumulator -= FIXED_STEP }
-    }
-    this.render()
-    window.__UG_DEBUG__ = { fps: this.state.fps, frameMs: Number(this.frameMs.toFixed(2)), enemies: this.enemies.count, renderScale: this.renderScale, mode: 'canvas2d' }
+      while (this.accumulator >= FIXED_STEP && this.state.screen === 'playing') { this.update(FIXED_STEP); this.accumulator -= FIXED_STEP }
+      this.render()
+    } else this.accumulator = 0
+    window.__UG_DEBUG__ = { fps: this.state.fps, frameMs: Number(this.frameMs.toFixed(2)), enemies: this.enemies.count, renderScale: this.renderScale, mode: 'canvas2d', elapsed: this.state.elapsed, screen: this.state.screen, playerX: this.player.x, playerY: this.player.y, kills: this.state.kills, wave: this.state.wave, level: this.player.level, hp: this.player.hp, pulseCooldown: this.state.pulseCooldown, weapon: this.player.weapon }
     this.animationFrame = requestAnimationFrame(this.loop)
   }
 
@@ -173,6 +183,8 @@ export class GameEngine {
     this.bannerTimer = Math.max(0, this.bannerTimer - dt); this.shake = Math.max(0, this.shake - dt * 12); this.damageFlash = Math.max(0, this.damageFlash - dt * 1.5)
     this.consumeInput(); this.updatePlayer(dt); this.updateWaves(dt)
     this.enemies.update(dt, this.player.x, this.player.y, (damage) => this.attackPlayer(damage))
+    this.enemies.forEachActive((enemy) => this.city.resolve(enemy, enemy.radius, this.player, enemy.speed * dt))
+    if (this.player.hp <= 0) { this.gameOver(); return }
     this.autoFire(); this.updateProjectiles(dt); this.updatePickups(dt); this.updateParticles(dt)
     const follow = 1 - Math.exp(-8 * dt)
     this.cameraX += (this.player.x - this.cameraX) * follow; this.cameraY += (this.player.y - this.cameraY) * follow
@@ -193,6 +205,7 @@ export class GameEngine {
     dx /= worldLength; dy /= worldLength
     this.player.x = clamp(this.player.x + dx * speed * dt, 15, WORLD - 15)
     this.player.y = clamp(this.player.y + dy * speed * dt, 15, WORLD - 15)
+    this.city.resolve(this.player, 9)
   }
 
   private updateWaves(dt: number): void {
@@ -279,6 +292,7 @@ export class GameEngine {
         if (pickup.medical) this.player.hp = Math.min(this.player.maxHp, this.player.hp + 30)
         else { this.player.xp += pickup.amount; this.checkLevelUp() }
         this.spawnParticles(pickup.x, pickup.y, pickup.medical ? '#c7fa98' : '#8cdbdc', 10)
+        if (this.state.screen !== 'playing') return
       }
       if (pickup.life <= 0) pickup.active = false
     }
@@ -288,7 +302,12 @@ export class GameEngine {
     if (this.player.xp < this.player.xpNeeded) return
     this.player.xp -= this.player.xpNeeded; this.player.level += 1; this.player.xpNeeded = Math.ceil(this.player.xpNeeded * 1.35 + 1)
     this.setScreen('levelup'); this.audio.setMuffled(true)
-    this.events.onUpgrades([...UPGRADES].sort(() => Math.random() - 0.5).slice(0, 3))
+    const choices = [...UPGRADES]
+    for (let i = choices.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1)); const current = choices[i]!
+      choices[i] = choices[j]!; choices[j] = current
+    }
+    this.events.onUpgrades(choices.slice(0, 3))
   }
 
   private pulse(): void {
@@ -330,85 +349,105 @@ export class GameEngine {
 
   private render(): void {
     const ctx = this.context
-    ctx.fillStyle = '#101b20'; ctx.fillRect(0, 0, this.width, this.height)
+    this.sceneView.width = this.width; this.sceneView.height = this.height; this.sceneView.scale = this.projectionScale; this.sceneView.cameraX = this.cameraX; this.sceneView.cameraY = this.cameraY
+    ctx.fillStyle = '#101d17'; ctx.fillRect(0, 0, this.width, this.height)
     ctx.save()
-    if (this.shake > 0) ctx.translate(randomRange(-this.shake, this.shake) * this.projectionScale, randomRange(-this.shake, this.shake) * this.projectionScale)
-    this.drawWorld(); this.drawPickups()
+    if (this.shake > 0 && !this.reducedMotion) ctx.translate(randomRange(-this.shake, this.shake) * this.projectionScale, randomRange(-this.shake, this.shake) * this.projectionScale)
+    this.drawWorld(); this.city.drawPlayerLight(ctx, this.sceneView, this.player); this.drawPickups()
     if (this.pulseAnimation > 0) this.drawPulse()
     this.drawActors(); this.drawProjectiles(); this.drawParticles()
     ctx.restore()
+    if (!this.reducedMotion) this.city.drawRain(ctx, this.sceneView, this.state.elapsed)
     if (this.vignette) { ctx.fillStyle = this.vignette; ctx.fillRect(0, 0, this.width, this.height) }
-    if (this.damageFlash > 0) { ctx.fillStyle = `rgba(150,25,18,${this.damageFlash * 0.13})`; ctx.fillRect(0, 0, this.width, this.height) }
+    if (this.damageFlash > 0) { ctx.fillStyle = `rgba(150,55,25,${this.damageFlash * .12})`; ctx.fillRect(0, 0, this.width, this.height) }
     if (this.bannerTimer > 0 && this.state.screen === 'playing') {
-      ctx.textAlign = 'center'; ctx.font = `900 ${Math.max(16, 22 * this.projectionScale)}px system-ui`; ctx.fillStyle = `rgba(214,245,168,${Math.min(1, this.bannerTimer)})`; ctx.fillText(`OLEADA ${String(this.state.wave).padStart(2, '0')}`, this.width / 2, this.height * 0.22)
+      ctx.textAlign = 'center'; ctx.font = `700 ${Math.max(24, 30 * this.projectionScale)}px "Barlow Condensed", sans-serif`; ctx.fillStyle = `rgba(211,237,179,${Math.min(1, this.bannerTimer)})`; ctx.fillText(`OLEADA ${String(this.state.wave).padStart(2, '0')}`, this.width / 2, this.height * .28)
     }
   }
 
-  private drawWorld(): void {
-    const ctx = this.context
-    this.polygon(0, 0, WORLD, 0, WORLD, WORLD, 0, WORLD, '#263330')
-    const tile = 80
-    const radiusX = this.width / (this.projectionScale * 0.8) + 180; const radiusY = this.height / (this.projectionScale * 0.4) + 180
-    const startX = Math.max(0, Math.floor((this.cameraX - radiusX) / tile) * tile); const endX = Math.min(WORLD, this.cameraX + radiusX)
-    const startY = Math.max(0, Math.floor((this.cameraY - radiusY) / tile) * tile); const endY = Math.min(WORLD, this.cameraY + radiusY)
-    for (let x = startX; x < endX; x += tile) for (let y = startY; y < endY; y += tile) this.polygon(x + 1, y + 1, Math.min(x + 79, WORLD), y + 1, Math.min(x + 79, WORLD), Math.min(y + 79, WORLD), x + 1, Math.min(y + 79, WORLD), ((x + y) / tile) % 3 === 0 ? '#2a3733' : '#25322f')
-    this.polygon(510, 0, 690, 0, 690, WORLD, 510, WORLD, '#303b39')
-    ctx.fillStyle = '#8b8a625f'
-    for (let y = 20; y < WORLD; y += 85) this.polygon(596, y, 600, y, 600, y + 32, 596, y + 32, '#8b8a625f')
-    for (const item of this.debris) {
-      const px = this.projectX(item.x, item.y); const py = this.projectY(item.x, item.y)
-      if (px < 0 || px > this.width || py < 0 || py > this.height) continue
-      ctx.fillStyle = item.lit ? '#71807255' : '#101b2055'; ctx.fillRect(px | 0, py | 0, Math.max(1, item.size * this.projectionScale), Math.max(1, this.projectionScale))
-    }
-  }
+  private drawWorld(): void { this.city.drawGround(this.context, this.sceneView) }
 
   private drawActors(): void {
     this.visibleEnemies.length = 0
     this.enemies.forEachActive((enemy) => { if (this.isVisible(enemy.x, enemy.y, 80)) this.visibleEnemies.push(enemy) })
     this.visibleEnemies.sort((a, b) => a.x + a.y - b.x - b.y)
-    let playerDrawn = false; const playerDepth = this.player.x + this.player.y
-    for (const enemy of this.visibleEnemies) {
-      if (!playerDrawn && enemy.x + enemy.y > playerDepth) { this.drawCharacter(this.player, true); playerDrawn = true }
-      this.drawCharacter(enemy, false)
+    let playerDrawn = false; let propIndex = 0; const playerDepth = this.player.x + this.player.y
+    const sceneryBefore = (depth: number): void => {
+      while (propIndex < this.city.props.length) {
+        const prop = this.city.props[propIndex]!
+        if (prop.sortDepth > depth) break
+        this.city.drawProp(this.context, prop, this.sceneView, this.player); propIndex++
+      }
     }
-    if (!playerDrawn) this.drawCharacter(this.player, true)
+    for (const enemy of this.visibleEnemies) {
+      if (!playerDrawn && enemy.x + enemy.y > playerDepth) { sceneryBefore(playerDepth); this.drawCharacter(this.player, true); playerDrawn = true }
+      sceneryBefore(enemy.x + enemy.y); this.drawCharacter(enemy, false)
+    }
+    if (!playerDrawn) { sceneryBefore(playerDepth); this.drawCharacter(this.player, true) }
+    sceneryBefore(Infinity)
   }
 
   private drawCharacter(entity: IPlayer | IZombie, human: boolean): void {
-    const ctx = this.context
-    const enemy = human ? null : entity as IZombie
-    const tank = enemy?.kind === 'tank'; const runner = enemy?.kind === 'runner'; const size = this.projectionScale * (tank ? 1.35 : runner ? 0.85 : 1)
+    const ctx = this.context; const enemy = human ? null : entity as IZombie
+    const tank = enemy?.kind === 'tank'; const runner = enemy?.kind === 'runner'; const size = this.projectionScale * (tank ? 1.5 : runner ? .85 : 1)
     const px = this.projectX(entity.x, entity.y); const py = this.projectY(entity.x, entity.y)
-    ctx.fillStyle = '#00000055'; ctx.beginPath(); ctx.ellipse(px, py, 13 * size, 5 * size, 0, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = '#030b0780'; ctx.beginPath(); ctx.ellipse(px + 3 * size, py + size, 13 * size, 5 * size, 0, 0, Math.PI * 2); ctx.fill()
+    if (human) { ctx.strokeStyle = '#c1ec8975'; ctx.lineWidth = .7 * size; ctx.beginPath(); ctx.ellipse(px, py, 16 * size, 7 * size, 0, 0, Math.PI * 2); ctx.stroke() }
     if (human && this.player.invulnerability > 0 && Math.floor(this.state.elapsed * 20) % 2 === 0) return
-    const step = Math.sin(this.state.elapsed * 11 + (enemy?.phase ?? 0)) * 2
+    const moving = !human || Math.abs(this.input.moveX) + Math.abs(this.input.moveY) > .1
+    const step = moving ? Math.sin(this.state.elapsed * 11 + (enemy?.phase ?? 0)) * 2 : 0
     ctx.save(); ctx.translate(Math.round(px), Math.round(py))
     const rect = (x: number, y: number, w: number, h: number, color: string): void => { ctx.fillStyle = color; ctx.fillRect(Math.round(x * size), Math.round(y * size), Math.ceil(w * size), Math.ceil(h * size)) }
-    const flash = Boolean(enemy && enemy.hitFlash > 0); const skin = human ? '#d1b594' : tank ? '#77835a' : runner ? '#a3a66d' : '#92a16c'
-    rect(-6, -10 + step, 4, 10, '#172329'); rect(2, -10 - step, 4, 10, '#26323a')
-    rect(-7, -19, 14, 12, flash ? '#deecab' : human ? '#66857d' : tank ? '#52613d' : '#596c45')
-    rect(-5, -29, 10, 10, flash ? '#f0f8d7' : skin); rect(-6, -31, 12, 5, human ? '#789185' : '#38432f')
-    rect(-3, -24, 2, 2, human ? '#24343b' : '#e5a773'); rect(2, -24, 2, 2, human ? '#24343b' : '#e5a773')
-    rect(-10, -18, 3, human ? 9 : 12, human ? '#789185' : '#879664'); rect(7, -18, 3, human ? 9 : 12, human ? '#789185' : '#879664')
-    if (human) { const angle = Math.atan2((Math.cos(this.player.angle) + Math.sin(this.player.angle)) * 0.47, (Math.cos(this.player.angle) - Math.sin(this.player.angle)) * 0.86); ctx.translate(0, -15 * size); ctx.rotate(angle); ctx.fillStyle = '#18242b'; ctx.fillRect(3 * size, -2 * size, 18 * size, 4 * size); ctx.fillStyle = '#ffe2a1'; ctx.fillRect(17 * size, -1 * size, 5 * size, 2 * size) }
+    const flash = Boolean(enemy && enemy.hitFlash > 0)
+    const skin = human ? '#cfbb94' : tank ? '#8d9167' : runner ? '#b0a67d' : '#91a27c'
+    const coat = flash ? '#dae8b5' : human ? '#7d8c61' : tank ? '#5a6945' : (enemy?.id ?? 0) % 3 === 0 ? '#75644b' : '#546c53'
+    rect(-7, -12 + step, 5, 10, '#2a3c2a'); rect(2, -12 - step, 5, 10, '#384833')
+    rect(-8, -3 + step, 6, 3, '#142619'); rect(2, -3 - step, 7, 3, '#1b2b1c')
+    if (human) { rect(-10, -24, 5, 15, '#3d5234'); rect(-11, -22, 2, 9, '#a3a279') }
+    rect(-8, -23, 16, 15, '#273c2a'); rect(-7, -23, 14, 14, coat)
+    rect(-5, -20, 5, 8, human ? '#a1ad7b' : '#788b60'); rect(1, -20, 5, 8, '#465c3a')
+    rect(-7, -10, 14, 3, '#2b3e28'); rect(-1, -10, 3, 2, '#c6b98a')
+    rect(-11, -21, 4, 10, coat); rect(7, -21, 4, 10, coat)
+    rect(-10, -13, 3, 5, skin); rect(8, -13, 3, 5, skin)
+    rect(-5, -33, 11, 11, flash ? '#e9edc5' : skin)
+    rect(-5, -25, 4, 3, human ? '#aa936b' : '#5b7050')
+    if (human) { rect(-6, -36, 12, 6, '#8e9b6b'); rect(-7, -33, 14, 4, '#657e4e'); rect(-4, -36, 8, 2, '#b0b483'); rect(-4, -29, 10, 3, '#253c2b'); rect(3, -28, 2, 1, '#c9df9b') }
+    else { rect(-5, -34, 10, 4, '#374c31'); rect(-6, -32, 3, 6, '#3b5135'); rect(-3, -28, 2, 2, '#d9b576'); rect(3, -28, 2, 2, '#d9b576'); rect(0, -24, 3, 1, '#435237') }
+    if (human) {
+      const angle = Math.atan2((Math.cos(this.player.angle) + Math.sin(this.player.angle)) * .47, (Math.cos(this.player.angle) - Math.sin(this.player.angle)) * .86)
+      ctx.save(); ctx.translate(0, -18 * size); ctx.rotate(angle)
+      rect(0, -2, 9, 5, '#45523a'); rect(6, -2, 19, 4, '#15291e'); rect(10, -3, 12, 1, '#819077'); rect(13, 2, 4, 5, '#263b29'); rect(24, -1, 5, 2, '#9aab88')
+      if (this.shotTimer > this.player.fireInterval * WEAPONS[this.player.weapon].intervalMultiplier - .055) { rect(29, -3, 6, 6, '#ebc67b'); rect(31, -1, 8, 2, '#fff0be') }
+      ctx.restore()
+      ctx.fillStyle = '#c2eb89'; ctx.beginPath(); ctx.moveTo(-2 * size, -43 * size); ctx.lineTo(2 * size, -43 * size); ctx.lineTo(0, -40 * size); ctx.fill()
+    }
     ctx.restore()
-    if (enemy && enemy.hp < enemy.maxHp) { ctx.fillStyle = '#152019'; ctx.fillRect(px - 10 * size, py - 37 * size, 20 * size, 2 * size); ctx.fillStyle = '#b8d479'; ctx.fillRect(px - 10 * size, py - 37 * size, 20 * size * enemy.hp / enemy.maxHp, 2 * size) }
+    if (enemy && enemy.hp < enemy.maxHp) { ctx.fillStyle = '#132618'; ctx.fillRect(px - 10 * size, py - 41 * size, 20 * size, 2 * size); ctx.fillStyle = '#b8d479'; ctx.fillRect(px - 10 * size, py - 41 * size, 20 * size * enemy.hp / enemy.maxHp, 2 * size) }
   }
 
   private drawPickups(): void {
-    const ctx = this.context
+    const ctx = this.context; const s = this.projectionScale
     for (const item of this.pickups) {
       if (!item.active || !this.isVisible(item.x, item.y, 30)) continue
       const px = this.projectX(item.x, item.y); const py = this.projectY(item.x, item.y, 7 + Math.sin(this.state.elapsed * 5 + item.phase) * 2)
-      ctx.fillStyle = item.medical ? '#c7fa98' : '#8cdbdc'; ctx.fillRect(px - 4 * this.projectionScale, py - 4 * this.projectionScale, 8 * this.projectionScale, 8 * this.projectionScale)
-      ctx.fillStyle = '#e8ffff'; ctx.fillRect(px - this.projectionScale, py - 3 * this.projectionScale, 2 * this.projectionScale, 6 * this.projectionScale); ctx.fillRect(px - 3 * this.projectionScale, py - this.projectionScale, 6 * this.projectionScale, 2 * this.projectionScale)
+      ctx.fillStyle = item.medical ? '#c2eb8921' : '#8cdbdc21'; ctx.beginPath(); ctx.ellipse(px, this.projectY(item.x, item.y), 12 * s, 5 * s, 0, 0, Math.PI * 2); ctx.fill()
+      if (item.medical) {
+        ctx.fillStyle = '#536e45'; ctx.fillRect(px - 7 * s, py - 4 * s, 14 * s, 10 * s)
+        ctx.fillStyle = '#b1c396'; ctx.fillRect(px - 7 * s, py - 5 * s, 14 * s, 3 * s)
+        ctx.fillStyle = '#ddf5b9'; ctx.fillRect(px - s, py - 2 * s, 2 * s, 6 * s); ctx.fillRect(px - 3 * s, py, 6 * s, 2 * s)
+      } else {
+        const r = (item.amount > 1 ? 6 : 4) * s
+        ctx.fillStyle = '#83b9aa'; ctx.beginPath(); ctx.moveTo(px, py - r * 1.5); ctx.lineTo(px + r, py); ctx.lineTo(px, py + r); ctx.lineTo(px - r, py); ctx.closePath(); ctx.fill()
+        ctx.fillStyle = '#d4eed7'; ctx.beginPath(); ctx.moveTo(px, py - r * 1.5); ctx.lineTo(px, py); ctx.lineTo(px - r, py); ctx.closePath(); ctx.fill()
+      }
     }
   }
 
   private drawProjectiles(): void {
-    const ctx = this.context; ctx.strokeStyle = '#fff0b4'; ctx.lineWidth = Math.max(1, 2 * this.projectionScale); ctx.beginPath()
-    for (const bullet of this.projectiles) if (bullet.active) { ctx.moveTo(this.projectX(bullet.x, bullet.y), this.projectY(bullet.x, bullet.y, 15)); ctx.lineTo(this.projectX(bullet.x - bullet.vx * 0.018, bullet.y - bullet.vy * 0.018), this.projectY(bullet.x - bullet.vx * 0.018, bullet.y - bullet.vy * 0.018, 15)) }
-    ctx.stroke()
+    const ctx = this.context; ctx.beginPath()
+    for (const bullet of this.projectiles) if (bullet.active) { ctx.moveTo(this.projectX(bullet.x, bullet.y), this.projectY(bullet.x, bullet.y, 18)); ctx.lineTo(this.projectX(bullet.x - bullet.vx * .023, bullet.y - bullet.vy * .023), this.projectY(bullet.x - bullet.vx * .023, bullet.y - bullet.vy * .023, 18)) }
+    ctx.strokeStyle = '#edbd6030'; ctx.lineWidth = 6 * this.projectionScale; ctx.stroke()
+    ctx.strokeStyle = '#ffe6a5'; ctx.lineWidth = Math.max(1, 1.5 * this.projectionScale); ctx.stroke()
   }
 
   private drawParticles(): void {
@@ -418,12 +457,12 @@ export class GameEngine {
   }
 
   private drawPulse(): void {
-    const progress = 1 - this.pulseAnimation / 0.55; const radius = progress * 160 * this.projectionScale
-    this.context.strokeStyle = `rgba(211,255,158,${this.pulseAnimation / 0.55})`; this.context.lineWidth = 3 * this.projectionScale; this.context.beginPath(); this.context.ellipse(this.projectX(this.player.x, this.player.y), this.projectY(this.player.x, this.player.y), radius * 1.22, radius * 0.665, 0, 0, Math.PI * 2); this.context.stroke()
-  }
-
-  private polygon(ax: number, ay: number, bx: number, by: number, cx: number, cy: number, dx: number, dy: number, color: string): void {
-    const ctx = this.context; ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(this.projectX(ax, ay), this.projectY(ax, ay)); ctx.lineTo(this.projectX(bx, by), this.projectY(bx, by)); ctx.lineTo(this.projectX(cx, cy), this.projectY(cx, cy)); ctx.lineTo(this.projectX(dx, dy), this.projectY(dx, dy)); ctx.closePath(); ctx.fill()
+    const progress = 1 - this.pulseAnimation / .55; const radius = progress * 160 * this.projectionScale; const ctx = this.context
+    const x = this.projectX(this.player.x, this.player.y); const y = this.projectY(this.player.x, this.player.y)
+    ctx.fillStyle = `rgba(193,235,137,${(1 - progress) * .07})`; ctx.strokeStyle = `rgba(211,255,158,${1 - progress})`; ctx.lineWidth = 2 * this.projectionScale
+    ctx.beginPath(); ctx.ellipse(x, y, radius * 1.22, radius * .665, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
+    ctx.strokeStyle = `rgba(226,255,198,${(1 - progress) * .45})`; ctx.lineWidth = this.projectionScale
+    ctx.beginPath(); ctx.ellipse(x, y, radius * 1.08, radius * .59, 0, 0, Math.PI * 2); ctx.stroke()
   }
 
   private projectX(x: number, y: number): number { return this.width / 2 + (x - this.cameraX - (y - this.cameraY)) * 0.86 * this.projectionScale }
@@ -436,6 +475,7 @@ export class GameEngine {
   private reset(): void {
     this.player = this.createPlayer(); this.enemies.reset(); this.projectiles.forEach((entry) => { entry.active = false }); this.pickups.forEach((entry) => { entry.active = false }); this.particles.forEach((entry) => { entry.active = false }); Object.assign(this.state, this.createState())
     this.cameraX = this.player.x; this.cameraY = this.player.y; this.accumulator = 0; this.shotTimer = 0; this.spawnRemaining = 0; this.waveDelay = 0; this.damageFlash = 0
+    this.spawnTimer = 0; this.hudTimer = 0; this.hitGate = 0; this.pulseAnimation = 0; this.bannerTimer = 0; this.shake = 0; this.fpsFrames = 0; this.fpsTime = 0; this.qualityTime = 0; this.frameMs = 16.7
   }
 
   private setScreen(screen: ScreenState): void { this.state.screen = screen; this.events.onScreen(screen); this.publishHud() }
