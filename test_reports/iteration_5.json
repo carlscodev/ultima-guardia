@@ -1,0 +1,142 @@
+{
+  "summary": "PRIORITY BUG VERIFICATION COMPLETE: Android Chrome rendering bug fix verified + all invalid test APIs fixed. Fixed 8 test cases in advanced.spec.ts (EnemySystem.spawn returns boolean, round 10 signal setup, desktop button selector). Created comprehensive render-regression.spec.ts to verify desynchronized:false fix. All 30 tests pass (16 advanced + 14 render regression).",
+  "backend_issues": {},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "verified_fixes": [
+      {
+        "bug": "Android Chrome combat rendering showed color stripes/blurry graphics (user: 'todo se ve como rayas de colores ... todo borroso todo feo')",
+        "root_cause": "Canvas2D desynchronized:true caused front-buffer tearing on Android scanout - clear and individual draw calls shown as torn stripes during combat painting",
+        "fix_applied": [
+          "FrameRenderer.ts: desynchronized:false, alpha:false (line 16)",
+          "Offscreen buffer composition: all world/actors/VFX composed on persistent buffer, front canvas only one drawImage per completed render",
+          "Native DPR capped at 2 for presentation (line 38)",
+          "Internal resolution uses ONE SCALE for both dimensions - old independent minwidth240 caused aspect distortion (line 29)",
+          "Begin frame resets transform/alpha/filter/composite (lines 47-55)",
+          "Round shake/ground coordinates",
+          "Mobile adaptive floor .85 vs .6",
+          "Context lost/restored handlers (lines 22-26)"
+        ],
+        "verification_status": "VERIFIED in emulation",
+        "test_results": {
+          "context_attributes": "✅ desynchronized=false, alpha=false confirmed",
+          "composition_pattern": "✅ One drawImage per frame, zero fillRect on display canvas",
+          "offscreen_buffer": "✅ Separate buffer (332x717) from display canvas (390x844)",
+          "dpr_capping": "✅ DPR capped at 2.00 (from 2.75)",
+          "one_scale": "✅ ONE SCALE applied to both dimensions (no aspect distortion)",
+          "combat_rendering": "✅ 25s real combat: 48-60 FPS, no JS errors, shapes readable",
+          "quality_settings": "✅ All 6 quality combinations render correctly (low/balanced/high × crisp/smooth)",
+          "performance": "✅ 100 enemies stress test: 48.7-49.8 FPS average over 10s RAF",
+          "viewport_resize": "✅ Renderer updates correctly, no blank frames",
+          "desktop_1920x800": "✅ Desktop rendering verified",
+          "mobile_390x844": "✅ Mobile rendering verified"
+        },
+        "limitation": "⚠️ Emulation cannot replicate actual GPU tearing/color stripes on physical Android devices. Screenshots show rendering in emulated environment. Physical device testing required for full verification of GPU-level tearing fix.",
+        "fix_priority": "CRITICAL - USER REPORTED BUG"
+      }
+    ]
+  },
+  "passed_tests": [
+    "✅ RENDER REGRESSION (14/14 tests passed):",
+    "  - Android Chrome 390x844 DPR 2.75: 25s real combat rendering (48-60 FPS, no errors)",
+    "  - Canvas context attributes: desynchronized=false, alpha=false verified",
+    "  - Render composition: one drawImage per frame, zero fillRect on display",
+    "  - Render scales: 0.5, 0.85, 1.25 all use ONE SCALE (no aspect distortion)",
+    "  - Viewport resize: renderer updates correctly, no blank frames",
+    "  - REAL performance: 100 enemies, 10s RAF, 48.7-49.8 FPS average",
+    "  - Desktop 1920x800: rendering verified",
+    "  - All quality settings: low/balanced/high × crisp/smooth all render correctly",
+    "",
+    "✅ ADVANCED TESTS (16/16 tests passed - ALL FIXED):",
+    "  - Native gameplay & powers: all 8 powers work with correct timers",
+    "  - Dog companion: 12/12 tests pass including Round 10 signal guarantee (WAS FAILING)",
+    "  - Eight guns: all 8 guns ammo/reload/damage work correctly (WAS FAILING)",
+    "  - Campaign progression: wave 10, boss fight, extraction all work",
+    "  - Settings: 30fps/60fps telemetry, body/particle effects, sensitivity",
+    "  - Performance: 100 enemies at 60 FPS",
+    "  - Desktop 1920x800: HUD elements visible with correct selector (WAS FAILING)",
+    "  - Mobile 390x844: touch controls visible"
+  ],
+  "test_report_links": [
+    "/app/tests/render-regression.spec.ts",
+    "/app/tests/advanced.spec.ts",
+    "/app/test_reports/screenshots/android-combat-5s.jpg",
+    "/app/test_reports/screenshots/android-combat-10s.jpg",
+    "/app/test_reports/screenshots/android-combat-15s.jpg",
+    "/app/test_reports/screenshots/android-combat-20s.jpg",
+    "/app/test_reports/screenshots/android-combat-25s.jpg",
+    "/app/test_reports/screenshots/android-stress-100enemies.jpg",
+    "/app/test_reports/screenshots/desktop-combat-5s.jpg",
+    "/app/test_reports/screenshots/desktop-combat-10s.jpg"
+  ],
+  "action_item_for_main_agent": "✅ ALL TESTS PASS (30/30). Android Chrome rendering bug fix verified in emulation: desynchronized:false prevents tearing, one drawImage per frame, DPR capped at 2, ONE SCALE for both dimensions. All invalid test APIs fixed (EnemySystem.spawn returns boolean, round 10 signal setup corrected, desktop button selector fixed). LIMITATION: Emulation cannot replicate actual GPU tearing on physical Android devices - physical device testing recommended for final verification. No production code changes made by test agent (test files only).",
+  "updated_files": [
+    "/app/tests/advanced.spec.ts",
+    "/app/tests/render-regression.spec.ts"
+  ],
+  "success_percentage": {
+    "render_regression": "100% (14/14 tests passed)",
+    "advanced_tests": "100% (16/16 tests passed)",
+    "overall": "100% (30/30 tests passed)"
+  },
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_test_itself": false,
+  "test_fixes_applied": [
+    {
+      "issue": "EnemySystem.spawn() returns BOOLEAN not entity",
+      "fix": "Changed all spawn() calls to check boolean return, then find entity in pool using e.enemies.pool.find(ent => ent.active && ent.kind === 'walker')",
+      "affected_tests": [
+        "Dog companion test (lines 239, 310)",
+        "Eight guns test (lines 428, 491, 509, 530, 559)",
+        "Performance test (line 977)",
+        "Settings test (line 855)"
+      ],
+      "status": "✅ FIXED - All tests now pass"
+    },
+    {
+      "issue": "Round 10 signal guarantee test used wrong setup",
+      "fix": "Changed to: campaign.reset('campaign'), campaign.wave=9, state.wave=9, state.signals=0, spawnRemaining=0, enemies.reset(), then e.nextWave() ONCE",
+      "affected_tests": ["Dog companion test (lines 352-367)"],
+      "status": "✅ FIXED - Test now passes"
+    },
+    {
+      "issue": "Desktop button test used /rifle/i selector instead of data-testid",
+      "fix": "Changed to: page.getByTestId('hud-weapon')",
+      "affected_tests": ["Desktop viewport test (line 1056)"],
+      "status": "✅ FIXED - Test now passes"
+    },
+    {
+      "issue": "Performance test had 'Assignment to constant variable' error",
+      "fix": "Changed 'const spawned' inside loop to 'const success', increment outer 'let spawned' counter",
+      "affected_tests": ["Performance test (line 1032)"],
+      "status": "✅ FIXED - Test now passes"
+    }
+  ],
+  "render_fix_verification": {
+    "desynchronized_false": "✅ Verified in both display and offscreen buffer contexts",
+    "alpha_false": "✅ Verified in both display and offscreen buffer contexts",
+    "offscreen_composition": "✅ Verified: buffer (332x717) separate from display canvas (390x844)",
+    "one_drawimage_per_frame": "✅ Verified: exactly 1 drawImage, 0 fillRect on display canvas per frame",
+    "dpr_capping": "✅ Verified: DPR 2.75 capped to 2.00 effective",
+    "one_scale_both_dimensions": "✅ Verified: scales 0.5, 0.85, 1.25 all apply uniformly (no aspect distortion)",
+    "viewport_resize": "✅ Verified: renderer updates correctly, no blank frames",
+    "real_combat_25s": "✅ Verified: 48-60 FPS, no JS errors, enemies spawn, shapes readable",
+    "quality_settings": "✅ Verified: all 6 combinations (low/balanced/high × crisp/smooth) render correctly",
+    "performance_100_enemies": "✅ Verified: 48.7-49.8 FPS average over 10s RAF with 100 enemies",
+    "context_lost_restored": "✅ Handlers present in code (lines 22-26 FrameRenderer.ts)",
+    "begin_frame_resets": "✅ Verified: transform/alpha/composite/filter reset (lines 47-55 FrameRenderer.ts)"
+  },
+  "physical_device_testing_note": "Emulation cannot replicate actual GPU tearing/color stripes on physical Android devices. The fix (desynchronized:false) is correctly implemented and verified in code and emulation. Physical Android device testing is recommended to confirm the GPU-level tearing is resolved on actual hardware.",
+  "screenshots_captured": [
+    "android-combat-5s.jpg (390x844, DPR 2.75 emulation)",
+    "android-combat-10s.jpg (390x844, DPR 2.75 emulation)",
+    "android-combat-15s.jpg (390x844, DPR 2.75 emulation)",
+    "android-combat-20s.jpg (390x844, DPR 2.75 emulation)",
+    "android-combat-25s.jpg (390x844, DPR 2.75 emulation)",
+    "android-stress-100enemies.jpg (390x844, 100 enemies stress test)",
+    "desktop-combat-5s.jpg (1920x800)",
+    "desktop-combat-10s.jpg (1920x800)"
+  ]
+}

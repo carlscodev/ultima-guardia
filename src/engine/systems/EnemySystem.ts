@@ -2,7 +2,8 @@ import type { IZombie, ZombieKind } from '@/types/game'
 import { clamp, distanceSquared } from '@/engine/math'
 
 const MAX_ENEMIES = 320
-const WORLD_SIZE = 1200
+const WORLD_SIZE = 3600
+const WORLD_HEIGHT = 1200
 const CELL_SIZE = 52
 const GRID_SIZE = Math.ceil(WORLD_SIZE / CELL_SIZE)
 const GRID_CELLS = GRID_SIZE * GRID_SIZE
@@ -37,12 +38,12 @@ export class EnemySystem {
     enemy.active = true
     enemy.kind = kind
     enemy.x = clamp(playerX + Math.cos(angle) * spawnRadius, 12, WORLD_SIZE - 12)
-    enemy.y = clamp(playerY + Math.sin(angle) * spawnRadius, 12, WORLD_SIZE - 12)
-    const baseHp = kind === 'tank' ? 105 : kind === 'runner' ? 25 : 40
-    const growth = Math.pow(wave, 1.12) * (kind === 'tank' ? 9 : kind === 'runner' ? 4 : 5)
+    enemy.y = clamp(playerY + Math.sin(angle) * spawnRadius, 12, WORLD_HEIGHT - 12)
+    const baseHp = {walker:40,runner:25,tank:145,armored:110,toxic:65,boss:1600}[kind]
+    const growth = Math.pow(wave, 1.1) * (kind === 'tank' ? 9 : 5)
     enemy.hp = baseHp + growth; enemy.maxHp = enemy.hp
-    enemy.speed = kind === 'tank' ? 24 + Math.min(wave, 20) : kind === 'runner' ? 66 + Math.min(wave, 25) : 36 + Math.min(wave * 1.7, 32)
-    enemy.radius = kind === 'tank' ? 18 : kind === 'runner' ? 10 : 12
+    enemy.speed = {walker:36,runner:74,tank:25,armored:31,toxic:34,boss:30}[kind] + Math.min(wave * 1.3, 22)
+    enemy.radius = kind === 'boss' ? 27 : kind === 'tank' ? 18 : kind === 'runner' ? 10 : 12
     enemy.vx = 0; enemy.vy = 0; enemy.hitFlash = 0; enemy.knockback = 0; enemy.phase = Math.random() * 7
     this.activeCount += 1
     return true
@@ -77,13 +78,15 @@ export class EnemySystem {
         }
       }
       const seek = enemy.knockback > 0 ? -0.72 : 1
-      enemy.vx = dx / distance * enemy.speed * seek + separationX * 3
-      enemy.vy = dy / distance * enemy.speed * seek + separationY * 3
+      const charge = enemy.kind === 'boss' && Math.sin(enemy.phase) > .8 ? 2.5 : 1
+      enemy.phase += dt
+      enemy.vx = dx / distance * enemy.speed * seek * charge + separationX * 3
+      enemy.vy = dy / distance * enemy.speed * seek * charge + separationY * 3
       enemy.x = clamp(enemy.x + enemy.vx * dt, 10, WORLD_SIZE - 10)
-      enemy.y = clamp(enemy.y + enemy.vy * dt, 10, WORLD_SIZE - 10)
+      enemy.y = clamp(enemy.y + enemy.vy * dt, 10, WORLD_HEIGHT - 10)
       enemy.hitFlash = Math.max(0, enemy.hitFlash - dt)
       enemy.knockback = Math.max(0, enemy.knockback - dt)
-      if (distance < enemy.radius + 7) onAttack(enemy.kind === 'tank' ? 20 : enemy.kind === 'runner' ? 8 : 11)
+      if (distance < enemy.radius + 7) onAttack(enemy.kind === 'boss' ? 27 : enemy.kind === 'tank' ? 20 : enemy.kind === 'runner' ? 8 : 11)
     }
   }
 

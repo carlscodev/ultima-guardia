@@ -1,74 +1,12 @@
 export class ProceduralAudio {
-  private context: AudioContext | null = null
-  private master: GainNode | null = null
-  private filter: BiquadFilterNode | null = null
-  private noiseBuffer: AudioBuffer | null = null
-  private muted = false
-
-  setMuted(muted: boolean): void {
-    this.muted = muted
-    if (this.master && this.context) this.master.gain.setTargetAtTime(muted ? 0 : 0.2, this.context.currentTime, 0.03)
-  }
-
-  async unlock(): Promise<void> {
-    if (!this.context) {
-      this.context = new AudioContext()
-      this.master = this.context.createGain()
-      this.master.gain.value = this.muted ? 0 : 0.2
-      this.filter = this.context.createBiquadFilter()
-      this.filter.type = 'lowpass'
-      this.filter.frequency.value = 18000
-      this.filter.connect(this.master).connect(this.context.destination)
-      this.noiseBuffer = this.createNoiseBuffer(this.context)
-    }
-    await this.context.resume()
-  }
-
-  setMuffled(active: boolean): void {
-    if (!this.context || !this.filter) return
-    this.filter.frequency.cancelScheduledValues(this.context.currentTime)
-    this.filter.frequency.exponentialRampToValueAtTime(active ? 700 : 18000, this.context.currentTime + 0.12)
-  }
-
-  shot(shotgun: boolean): void {
-    if (!this.context || !this.filter || !this.noiseBuffer) return
-    const now = this.context.currentTime
-    const source = this.context.createBufferSource()
-    const gain = this.context.createGain()
-    const band = this.context.createBiquadFilter()
-    source.buffer = this.noiseBuffer
-    band.type = 'bandpass'; band.frequency.value = shotgun ? 620 : 1200; band.Q.value = 0.75
-    gain.gain.setValueAtTime(shotgun ? 0.8 : 0.42, now)
-    gain.gain.exponentialRampToValueAtTime(0.001, now + (shotgun ? 0.16 : 0.07))
-    source.connect(band).connect(gain).connect(this.filter)
-    source.start(now); source.stop(now + 0.2)
-  }
-
-  impact(): void { this.tone(120, 48, 0.06, 0.08) }
-  pulse(): void { this.tone(160, 38, 0.45, 0.35) }
-  roar(distanceRatio: number): void { this.tone(72, 41, 0.35, 0.05 * (1 - distanceRatio)) }
-
-  private tone(from: number, to: number, duration: number, volume: number): void {
-    if (!this.context || !this.filter) return
-    const now = this.context.currentTime
-    const oscillator = this.context.createOscillator()
-    const gain = this.context.createGain()
-    oscillator.type = 'sawtooth'
-    oscillator.frequency.setValueAtTime(from, now)
-    oscillator.frequency.exponentialRampToValueAtTime(to, now + duration)
-    gain.gain.setValueAtTime(volume, now)
-    gain.gain.exponentialRampToValueAtTime(0.001, now + duration)
-    oscillator.connect(gain).connect(this.filter)
-    oscillator.start(now); oscillator.stop(now + duration)
-  }
-
-  private createNoiseBuffer(context: AudioContext): AudioBuffer {
-    const length = context.sampleRate
-    const buffer = context.createBuffer(1, length, context.sampleRate)
-    const channel = buffer.getChannelData(0)
-    for (let i = 0; i < length; i += 1) channel[i] = Math.random() * 2 - 1
-    return buffer
-  }
-
-  dispose(): void { void this.context?.close(); this.context = null }
+ private context:AudioContext|null=null;private master:GainNode|null=null;private filter:BiquadFilterNode|null=null;private noise:AudioBuffer|null=null;private muted=false;private volumes={effects: .6,ambient:.35,radio:.5};private nodes=0
+ setMuted(muted:boolean){this.muted=muted;if(this.master&&this.context)this.master.gain.setTargetAtTime(muted?0:.2,this.context.currentTime,.03)}
+ volumesSet(effects:number,ambient:number,radio:number){this.volumes={effects:effects/100,ambient:ambient/100,radio:radio/100}}
+ async unlock(){if(!this.context){this.context=new AudioContext();this.master=this.context.createGain();this.master.gain.value=this.muted?0:.2;this.filter=this.context.createBiquadFilter();this.filter.type='lowpass';this.filter.frequency.value=18000;this.filter.connect(this.master).connect(this.context.destination);this.noise=this.context.createBuffer(1,this.context.sampleRate,this.context.sampleRate);const a=this.noise.getChannelData(0);for(let i=0;i<a.length;i++)a[i]=Math.random()*2-1}await this.context.resume()}
+ setMuffled(active:boolean){if(this.context&&this.filter)this.filter.frequency.setTargetAtTime(active?600:18000,this.context.currentTime,.1)}
+ private hiss(f:number,duration:number,vol:number,channel:'effects'|'ambient'|'radio'='effects'){if(!this.context||!this.filter||!this.noise||this.nodes>24||this.muted)return;const c=this.context,n=c.currentTime,s=c.createBufferSource(),b=c.createBiquadFilter(),g=c.createGain();s.buffer=this.noise;b.type='bandpass';b.frequency.value=f;b.Q.value=.8;g.gain.setValueAtTime(Math.max(.0001,vol*this.volumes[channel]),n);g.gain.exponentialRampToValueAtTime(.0001,n+duration);s.connect(b).connect(g).connect(this.filter);s.start(n);s.stop(n+duration);this.nodes++;s.onended=()=>{s.disconnect();b.disconnect();g.disconnect();this.nodes--}}
+ shot(kind:boolean|string){const types:Record<string,[number,number,number]>={pistol:[1600,.08,.5],revolver:[560,.15,.85],rifle:[1100,.075,.5],shotgun:[480,.19,.9],smg:[2100,.055,.35],sniper:[330,.22,1],lmg:[780,.1,.65],launcher:[170,.3,.9]};const t=types[typeof kind==='boolean'?(kind?'shotgun':'rifle'):kind]||types.rifle!;this.hiss(t[0],t[1],t[2])}
+ impact(){this.tone(120,48,.06,.1)} pulse(){this.tone(160,38,.45,.35)} reload(){this.hiss(2800,.11,.25)} bark(){this.tone(260,85,.16,.2);this.hiss(600,.1,.2)} spark(){this.hiss(3500,.12,.25,'ambient')} radio(){this.hiss(2200,.09,.22,'radio');this.tone(900,1300,.09,.09,'radio')} roar(ratio:number){this.tone(72,41,.35,.16*(1-ratio),'ambient')} wind(){this.hiss(180,.8,.13,'ambient')}
+ private tone(from:number,to:number,duration:number,volume:number,channel:'effects'|'ambient'|'radio'='effects'){if(!this.context||!this.filter||this.nodes>24||this.muted)return;const c=this.context,n=c.currentTime,o=c.createOscillator(),g=c.createGain();o.type='sawtooth';o.frequency.setValueAtTime(from,n);o.frequency.exponentialRampToValueAtTime(to,n+duration);g.gain.setValueAtTime(Math.max(.0001,volume*this.volumes[channel]),n);g.gain.exponentialRampToValueAtTime(.0001,n+duration);o.connect(g).connect(this.filter);o.start(n);o.stop(n+duration);this.nodes++;o.onended=()=>{o.disconnect();g.disconnect();this.nodes--}}
+ dispose(){void this.context?.close();this.context=null}
 }

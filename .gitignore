@@ -11,3 +11,8 @@ coverage/
 playwright-report/
 test-results/
 *.tsbuildinfo
+*.env
+credentials.json
+*.pem
+*.key
+.credentials

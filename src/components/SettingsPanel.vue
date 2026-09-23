@@ -1,0 +1,21 @@
+<script setup lang="ts">
+import { RotateCcw, Monitor, SlidersHorizontal, Volume2, Accessibility } from '@lucide/vue'
+import { settings,preset,resetSettings,type Settings } from '@/stores/profile'
+const emit=defineEmits<{change:[]}>()
+const rangeGroups:{title:string;icon:typeof Monitor;rows:{key:keyof Settings;label:string;min:number;max:number;step:number;unit:string}[]}[]=[
+ {title:'Renderizado y efectos',icon:Monitor,rows:[{key:'resolution',label:'Resolución interna',min:.5,max:1.25,step:.05,unit:'×'},{key:'particles',label:'Partículas',min:0,max:100,step:10,unit:'%'},{key:'bodies',label:'Cuerpos visibles',min:0,max:40,step:1,unit:''}]},
+ {title:'Controles y cámara',icon:SlidersHorizontal,rows:[{key:'sensitivity',label:'Sensibilidad de puntería',min:.5,max:2,step:.1,unit:'×'},{key:'controlSize',label:'Tamaño de controles',min:85,max:125,step:5,unit:'px'},{key:'controlOffset',label:'Separación del borde',min:8,max:40,step:2,unit:'px'},{key:'shake',label:'Sacudida de cámara',min:0,max:100,step:10,unit:'%'}]},
+ {title:'Audio',icon:Volume2,rows:[{key:'effectsVolume',label:'Armas y efectos',min:0,max:100,step:5,unit:'%'},{key:'ambientVolume',label:'Ciudad y enemigos',min:0,max:100,step:5,unit:'%'},{key:'radioVolume',label:'Señales de radio',min:0,max:100,step:5,unit:'%'}]},
+ {title:'Accesibilidad',icon:Accessibility,rows:[{key:'blood',label:'Intensidad de sangre',min:0,max:100,step:10,unit:'%'}]},
+]
+const toggles:{key:keyof Settings;label:string}[]=[{key:'auto',label:'Calidad adaptativa'},{key:'shadows',label:'Sombras'},{key:'lighting',label:'Iluminación ambiental'},{key:'showFps',label:'Mostrar rendimiento'},{key:'aimAssist',label:'Asistencia de puntería'},{key:'autoFire',label:'Disparo automático'},{key:'leftHanded',label:'Controles para zurdos'},{key:'subtitles',label:'Subtítulos de radio'},{key:'reducedFlashes',label:'Reducir destellos'}]
+function set(key:keyof Settings,value:unknown){(settings as unknown as Record<string,unknown>)[key]=value;emit('change')}
+</script>
+<template>
+ <section class="settings-panel" data-testid="settings-panel"><div class="section-kicker">TU DISPOSITIVO. TUS REGLAS.</div><h2>Ajustes avanzados<span>.</span></h2><p class="muted">Más detalle cuando se pueda. Fluidez cuando importa.</p>
+ <div class="segmented presets"><button v-for="q in (['low','balanced','high'] as const)" :key="q" :data-testid="`quality-${q}`" :class="{selected:settings.quality===q}" :aria-pressed="settings.quality===q" @click="preset(q);emit('change')">{{q==='low'?'Baja':q==='balanced'?'Equilibrada':'Alta'}}</button></div>
+ <div class="settings-selects"><label>Suavizado de bordes<select data-testid="settings-aa" :value="settings.aa" @change="set('aa',($event.target as HTMLSelectElement).value)"><option value="crisp">Nítido · pixel art</option><option value="smooth">Suavizado</option></select></label><label>Límite de FPS<select data-testid="settings-fps" :value="settings.fps" @change="set('fps',Number(($event.target as HTMLSelectElement).value))"><option :value="60">60 FPS</option><option :value="30">30 FPS</option></select></label></div>
+ <div class="toggle-grid"><label v-for="t in toggles" :key="t.key" class="toggle-row"><span>{{t.label}}</span><input type="checkbox" :data-testid="`settings-${t.key}`" :checked="Boolean(settings[t.key])" @change="set(t.key,($event.target as HTMLInputElement).checked)" /><i aria-hidden="true" /></label></div>
+ <section v-for="group in rangeGroups" :key="group.title" class="settings-group"><h3><component :is="group.icon" :size="16" />{{group.title}}</h3><label v-for="row in group.rows" :key="row.key" class="slider-row"><span>{{row.label}}<b>{{Number(settings[row.key]).toFixed(row.step<1?2:0)}}{{row.unit}}</b></span><input type="range" :data-testid="`settings-${row.key}`" :min="row.min" :max="row.max" :step="row.step" :value="settings[row.key]" @input="set(row.key,Number(($event.target as HTMLInputElement).value))" /></label></section>
+ <p class="settings-note">El modo nítido conserva los píxeles. El suavizado utiliza interpolación del lienzo, sin desenfoque global. La calidad automática puede reducir la resolución. 60 FPS es una meta, no una garantía.</p><button data-testid="settings-reset" class="secondary wide" @click="resetSettings();emit('change')"><RotateCcw :size="15" />Restaurar ajustes</button></section>
+</template>

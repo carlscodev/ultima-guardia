@@ -1,0 +1,18 @@
+[
+  {
+    "content": "Reproducir las rayas y borrosidad del combate en Chrome móvil y localizar la causa",
+    "status": "completed"
+  },
+  {
+    "content": "Corregir el renderizado sin sacrificar el pixel art ni los controles",
+    "status": "completed"
+  },
+  {
+    "content": "Verificar el fallo reportado con el agente de pruebas y capturas de combate móvil",
+    "status": "in_progress"
+  },
+  {
+    "content": "Cerrar las pruebas avanzadas pendientes de armas, apoyo y extracción real",
+    "status": "pending"
+  }
+]

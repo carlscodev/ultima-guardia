@@ -1,61 +1,10 @@
-import { onBeforeUnmount, onMounted } from 'vue'
-import type { InputState, WeaponKind } from '@/types/game'
-
-export interface ControlsApi {
-  readonly state: InputState
-  setJoystick: (x: number, y: number) => void
-  releaseJoystick: () => void
-  queuePulse: () => void
-  queueWeapon: (weapon: WeaponKind) => void
-  clear: () => void
-}
-
-export function useControls(): ControlsApi {
-  const keys = new Set<string>()
-  const state: InputState = { moveX: 0, moveY: 0, pulseQueued: false, weaponQueued: null }
-  let joystickX = 0
-  let joystickY = 0
-
-  const recalculate = (): void => {
-    const keyboardX = Number(keys.has('d') || keys.has('arrowright')) - Number(keys.has('a') || keys.has('arrowleft'))
-    const keyboardY = Number(keys.has('s') || keys.has('arrowdown')) - Number(keys.has('w') || keys.has('arrowup'))
-    state.moveX = Math.max(-1, Math.min(1, keyboardX + joystickX))
-    state.moveY = Math.max(-1, Math.min(1, keyboardY + joystickY))
-  }
-  const keydown = (event: KeyboardEvent): void => {
-    if (event.isComposing || event.keyCode === 229 || (event.target instanceof HTMLElement && event.target.closest('dialog, input, textarea, select'))) return
-    const key = event.key.toLowerCase()
-    if (key === ' ' && event.target instanceof HTMLButtonElement) return
-    if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' ', '1', '2'].includes(key)) event.preventDefault()
-    keys.add(key)
-    if (key === ' ' && !event.repeat) state.pulseQueued = true
-    if (key === '1') state.weaponQueued = 'rifle'
-    if (key === '2') state.weaponQueued = 'shotgun'
-    recalculate()
-  }
-  const keyup = (event: KeyboardEvent): void => { keys.delete(event.key.toLowerCase()); recalculate() }
-  const clear = (): void => {
-    keys.clear(); joystickX = 0; joystickY = 0
-    state.moveX = 0; state.moveY = 0; state.pulseQueued = false; state.weaponQueued = null
-  }
-
-  onMounted(() => {
-    window.addEventListener('keydown', keydown, { passive: false })
-    window.addEventListener('keyup', keyup)
-    window.addEventListener('blur', clear)
-  })
-  onBeforeUnmount(() => {
-    window.removeEventListener('keydown', keydown)
-    window.removeEventListener('keyup', keyup)
-    window.removeEventListener('blur', clear)
-  })
-
-  return {
-    state,
-    setJoystick: (x, y) => { joystickX = x; joystickY = y; recalculate() },
-    releaseJoystick: () => { joystickX = 0; joystickY = 0; recalculate() },
-    queuePulse: () => { state.pulseQueued = true },
-    queueWeapon: (weapon) => { state.weaponQueued = weapon },
-    clear,
-  }
+import { onBeforeUnmount,onMounted } from 'vue'
+import type { InputState,WeaponKind } from '@/types/game'
+import { WEAPON_IDS } from '@/data/content'
+export function useControls(){const keys=new Set<string>();const state:InputState={moveX:0,moveY:0,pulseQueued:false,weaponQueued:null,aimX:0,aimY:0,aiming:false,firing:false};let jx=0,jy=0
+ const recalc=()=>{state.moveX=Math.max(-1,Math.min(1,Number(keys.has('d')||keys.has('arrowright'))-Number(keys.has('a')||keys.has('arrowleft'))+jx));state.moveY=Math.max(-1,Math.min(1,Number(keys.has('s')||keys.has('arrowdown'))-Number(keys.has('w')||keys.has('arrowup'))+jy))}
+ const down=(e:KeyboardEvent)=>{if(e.isComposing||e.target instanceof HTMLElement&&e.target.closest('input,textarea,select,[role="dialog"],dialog'))return;const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright',' ','1','2','3','4','5','6','7','8','r','e'].includes(k))e.preventDefault();keys.add(k);if(k===' '&&!e.repeat)state.pulseQueued=true;if(k==='r')state.reloadQueued=true;if(k==='e'&&!e.repeat)state.squadQueued=true;if(Number(k)>=1&&Number(k)<=8)state.weaponQueued=WEAPON_IDS[Number(k)-1]!;recalc()}
+ const up=(e:KeyboardEvent)=>{keys.delete(e.key.toLowerCase());recalc()};const clear=()=>{keys.clear();jx=jy=0;Object.assign(state,{moveX:0,moveY:0,pulseQueued:false,weaponQueued:null,aimX:0,aimY:0,aiming:false,firing:false,reloadQueued:false,squadQueued:false})}
+ onMounted(()=>{window.addEventListener('keydown',down);window.addEventListener('keyup',up);window.addEventListener('blur',clear)});onBeforeUnmount(()=>{window.removeEventListener('keydown',down);window.removeEventListener('keyup',up);window.removeEventListener('blur',clear)})
+ return{state,clear,setJoystick:(x:number,y:number)=>{jx=x;jy=y;recalc()},releaseJoystick:()=>{jx=jy=0;recalc()},setAim:(x:number,y:number)=>{state.aimX=x;state.aimY=y;state.aiming=Math.hypot(x,y)>.1;state.firing=state.aiming},releaseAim:()=>{state.aiming=false;state.firing=false},queuePulse:()=>state.pulseQueued=true,queueWeapon:(w:WeaponKind)=>state.weaponQueued=w}
 }

@@ -22,7 +22,7 @@ onMounted(() => dialog.value?.showModal())
       <h2 id="upgrade-title">ELIGE TU <em>VENTAJA.</em></h2>
       <p class="upgrade-copy">Un poco más fuerte. Un poco más vivo. Elige cómo seguir.</p>
       <div class="cards">
-        <button v-for="(upgrade, index) in upgrades" :key="upgrade.id" :autofocus="index === 0" @click="emit('choose', upgrade)">
+        <button v-for="(upgrade, index) in upgrades" :data-testid="`upgrade-${upgrade.id}`" :key="upgrade.id" :autofocus="index === 0" @click="emit('choose', upgrade)">
           <div class="card-top"><span class="upgrade-icon"><component :is="icons[upgrade.id]" :size="28" :stroke-width="1.4" /></span><kbd>{{ index + 1 }}</kbd></div>
           <small>MEJORA TÁCTICA</small><strong>{{ upgrade.name }}</strong><p>{{ upgrade.description }}</p>
           <span class="install">ELEGIR MEJORA <ArrowRight :size="15" /></span>
