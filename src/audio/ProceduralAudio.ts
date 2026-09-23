@@ -136,13 +136,18 @@ export class ProceduralAudio {
  }
 
  shot(kind:boolean|string){
+  const name=typeof kind==='boolean'?(kind?'shotgun':'rifle'):kind
+  const samples:Record<string,SfxAudioId>={rifle:'shot-rifle',shotgun:'shot-shotgun',pistol:'shot-pistol',revolver:'shot-revolver',smg:'shot-smg',sniper:'shot-sniper',lmg:'shot-lmg',launcher:'shot-launcher'}
+  const volumes:Record<string,number>={rifle:.75,shotgun:.9,pistol:.65,revolver:.82,smg:.55,sniper:.95,lmg:.75,launcher:.8}
+  const sample=samples[name]
+  if(sample&&this.playSample(sample,volumes[name]??.75))return
   const types:Record<string,[number,number,number]>={pistol:[1600,.08,.5],revolver:[560,.15,.85],rifle:[1100,.075,.5],shotgun:[480,.19,.9],smg:[2100,.055,.35],sniper:[330,.22,1],lmg:[780,.1,.65],launcher:[170,.3,.9]}
-  const selected=types[typeof kind==='boolean'?(kind?'shotgun':'rifle'):kind]||types.rifle!
+  const selected=types[name]||types.rifle!
   this.hiss(selected[0],selected[1],selected[2])
  }
 
  reload(kind?:WeaponKind,rate=1){
-  const ids:Partial<Record<WeaponKind,SfxAudioId>>={revolver:'reload-revolver',smg:'reload-smg',sniper:'reload-sniper',lmg:'reload-lmg',launcher:'reload-launcher'}
+  const ids:Record<WeaponKind,SfxAudioId>={rifle:'reload-rifle',shotgun:'reload-shotgun',pistol:'reload-pistol',revolver:'reload-revolver',smg:'reload-smg',sniper:'reload-sniper',lmg:'reload-lmg',launcher:'reload-launcher'}
   const id=kind?ids[kind]:undefined
   if(!id||!this.playSample(id,.8,'effects',rate))this.hiss(2800,.11,.25)
  }

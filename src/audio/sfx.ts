@@ -1,6 +1,17 @@
 const base = import.meta.env.BASE_URL
 
 export const SFX_AUDIO = {
+  'shot-rifle': `${base}audio/sfx/shot-rifle.wav`,
+  'shot-shotgun': `${base}audio/sfx/shot-shotgun.wav`,
+  'shot-pistol': `${base}audio/sfx/shot-pistol.wav`,
+  'shot-revolver': `${base}audio/sfx/shot-revolver.wav`,
+  'shot-smg': `${base}audio/sfx/shot-smg.wav`,
+  'shot-sniper': `${base}audio/sfx/shot-sniper.wav`,
+  'shot-lmg': `${base}audio/sfx/shot-lmg.wav`,
+  'shot-launcher': `${base}audio/sfx/shot-launcher.wav`,
+  'reload-rifle': `${base}audio/sfx/reload-rifle.wav`,
+  'reload-shotgun': `${base}audio/sfx/reload-shotgun.wav`,
+  'reload-pistol': `${base}audio/sfx/reload-pistol.wav`,
   'reload-revolver': `${base}audio/sfx/reload-revolver.wav`,
   'reload-smg': `${base}audio/sfx/reload-smg.wav`,
   'reload-sniper': `${base}audio/sfx/reload-sniper.wav`,
