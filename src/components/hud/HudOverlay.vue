@@ -27,7 +27,7 @@ const time = (seconds: number): string => `${Math.floor(seconds / 60).toString()
     <button :class="{ active: state.weapon === 'rifle' }" @click="emit('weapon', 'rifle')"><kbd>1</kbd> RIFLE</button>
     <button :class="{ active: state.weapon === 'shotgun' }" @click="emit('weapon', 'shotgun')"><kbd>2</kbd> ESCOPETA</button>
   </nav>
-  <div class="telemetry">{{ state.fps }} FPS · SIM 60HZ</div>
+  <div class="telemetry">{{ state.fps }} FPS · CANVAS 2D · SIM 60HZ</div>
 </template>
 
 <style scoped>

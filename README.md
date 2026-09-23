@@ -1,6 +1,6 @@
-# Última Guardia 3D
+# Última Guardia — Canvas2D
 
-Refactor del prototipo Canvas 2D a Vue 3 + TypeScript estricto + Three.js.
+Zombie survivor isométrico 2D construido con Vue 3, TypeScript estricto y Canvas2D. Conserva la estética pixel-art y la lógica del prototipo original sin el coste de WebGL/Three.js.
 
 ## Ejecutar
 
@@ -9,51 +9,53 @@ npm install
 npm run dev
 ```
 
-Build de producción:
+## Validación
 
 ```bash
 npm run build
-npm run preview
+npx playwright install chromium
+npm run test:e2e
+npm run test:perf
 ```
 
 ## Arquitectura
 
 ```text
 src/
-├── audio/ProceduralAudio.ts       # Web Audio sintetizado, filtro táctico
-├── components/
-│   ├── GameView.vue               # Adaptador Vue ↔ motor
-│   ├── GameOverlay.vue            # Inicio, pausa y game over
-│   └── hud/
-│       ├── HudOverlay.vue
-│       ├── UpgradeMenu.vue
-│       └── VirtualControls.vue
-├── composables/useControls.ts     # Estado plano de entrada, sin updates reactivos/frame
+├── audio/ProceduralAudio.ts       # Web Audio sintetizado
+├── components/                    # HUD, overlays y controles Vue
+├── composables/useControls.ts     # Entrada plana no reactiva por frame
 ├── engine/
-│   ├── GameEngine.ts              # Fixed timestep, render, oleadas, armas y pooling
+│   ├── GameEngine.ts              # Canvas2D, fixed timestep y pools
 │   ├── math.ts
-│   └── systems/EnemySystem.ts     # InstancedMesh + pool + spatial hash
+│   └── systems/EnemySystem.ts     # Pool + spatial hash
 ├── stores/hud.ts                  # Snapshot superficial a 10 Hz
-├── types/game.ts                  # Contratos de dominio
-├── App.vue
-└── main.ts
+└── types/game.ts
+tests/performance.spec.ts          # FPS, arranque y controles con Playwright
 ```
 
-## Decisiones técnicas
+## Rendimiento
 
-- Simulación fija a 60 Hz con acumulador, render desacoplado vía `requestAnimationFrame`.
-- Posiciones y rotaciones viven en clases/objetos TypeScript no reactivos. Vue recibe sólo snapshots del HUD a 10 Hz.
-- Enemigos, proyectiles, pickups y partículas usan pools de tamaño fijo e `InstancedMesh`; no se crean objetos durante el combate.
-- Separación de horda mediante spatial hash uniforme, evitando el O(n²) del prototipo.
-- Pipeline ACES, PBR, sombras PCF, niebla exponencial, bloom, viñeta y aberración cromática por daño.
-- Audio Web Audio procedural sin descargar assets: ruido filtrado para armas y osciladores para impactos/pulso/rugidos.
-- Escalado no lineal: `7 + wave*3.2 + wave^1.28*1.65`; vida enemiga crece con `wave^1.16`.
+- Canvas interno a resolución dinámica entre 50% y 78% del viewport.
+- Simulación fija a 60 Hz separada del render.
+- Coordenadas fuera de la reactividad de Vue.
+- Pools fijos para 320 enemigos, 180 proyectiles, 150 pickups y 420 partículas.
+- Spatial hash para separación de hordas; evita el bucle O(n²) del prototipo.
+- Culling de actores y tiles fuera de cámara.
+- Un solo batch/path para todos los trazos de proyectiles.
+- HUD publicado a 10 Hz.
+- Telemetría accesible en `window.__UG_DEBUG__` para Playwright.
+- Sin Three.js, shaders, modelos, texturas externas ni fuentes de red.
 
-## Controles
+## Mecánicas
 
-- WASD/flechas o joystick: movimiento.
-- Espacio o botón derecho: pulso.
-- 1/2: rifle/escopeta.
-- P: pausa.
+- Rifle y escopeta.
+- Zombis walker, runner y tank.
+- Pulso defensivo, XP, botiquines y mejoras.
+- Oleadas de dificultad no lineal.
+- Joystick móvil, WASD/flechas, espacio, teclas 1/2 y pausa con P.
+- Audio procedural con Web Audio API.
 
-> Los modelos y texturas son procedurales para que el proyecto sea autocontenido. Para arte final, sustituye las geometrías en `buildPlayer`, `buildEnvironment` y `EnemySystem` por GLTF comprimidos con Draco/KTX2, conservando los pools y contratos existentes.
+## Vercel
+
+El repositorio incluye `vercel.json`. Vercel usa `npm run build` y publica `dist`.

@@ -18,7 +18,7 @@ const emit = defineEmits<{ start: []; resume: [] }>()
       <div v-if="screen === 'menu'" class="instructions"><span>WASD <b>MOVER</b></span><span>1 / 2 <b>ARMAS</b></span><span>ESPACIO <b>PULSO</b></span><span>P <b>PAUSA</b></span></div>
       <button v-if="screen === 'paused'" class="cta" @click="emit('resume')">CONTINUAR OPERACIÓN <span>→</span></button>
       <button v-else class="cta" @click="emit('start')">{{ screen === 'gameover' ? 'REINICIAR OPERACIÓN' : 'ENTRAR EN LA ZONA' }} <span>→</span></button>
-      <small>RECOMENDADO: AURICULARES · WEBGL 2 · 60 FPS</small>
+      <small>RECOMENDADO: AURICULARES · CANVAS 2D · 60 FPS</small>
     </section>
     <div class="scan" />
   </div>

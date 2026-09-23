@@ -47,7 +47,7 @@ onBeforeUnmount(() => {
 
 <template>
   <main class="game-shell">
-    <canvas ref="canvas" aria-label="Última Guardia, juego de supervivencia zombi 3D" />
+    <canvas ref="canvas" aria-label="Última Guardia, juego de supervivencia zombi 2D" />
     <div class="grain" />
     <template v-if="playingUi">
       <HudOverlay :state="hud.state.value" @weapon="weapon" @pause="pause" />

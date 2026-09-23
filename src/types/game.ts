@@ -7,7 +7,7 @@ export interface Vec2 { x: number; y: number }
 
 export interface IPlayer {
   x: number
-  z: number
+  y: number
   hp: number
   maxHp: number
   speed: number
@@ -28,9 +28,9 @@ export interface IZombie {
   active: boolean
   kind: ZombieKind
   x: number
-  z: number
+  y: number
   vx: number
-  vz: number
+  vy: number
   hp: number
   maxHp: number
   speed: number
@@ -85,4 +85,16 @@ export interface EngineEvents {
   onHud: (state: Readonly<GameState>) => void
   onScreen: (screen: ScreenState) => void
   onUpgrades: (upgrades: readonly IUpgrade[]) => void
+}
+
+export interface DebugTelemetry {
+  fps: number
+  frameMs: number
+  enemies: number
+  renderScale: number
+  mode: 'canvas2d'
+}
+
+declare global {
+  interface Window { __UG_DEBUG__?: DebugTelemetry }
 }
