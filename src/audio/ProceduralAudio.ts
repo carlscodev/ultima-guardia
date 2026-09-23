@@ -30,6 +30,12 @@ export class ProceduralAudio {
  private lastHurt=-100
  private lastZombie=-100
  private lastAmbient=-100
+ private lastAtlasAttack=-100
+ private lastAtlasMovement=-100
+ private lastAtlasIdle=-100
+ private lastAtlasAlert=-100
+ private lastAtlasHurt=-100
+ private lastAtlasRecovering=-100
 
  constructor(){
   if(typeof Audio==='undefined')return
@@ -241,7 +247,57 @@ export class ProceduralAudio {
   else this.playSample((`player-hurt-${1+Math.floor(Math.random()*3)}`) as SfxAudioId,.58)
  }
 
- bark(){this.tone(260,85,.16,.2);this.hiss(600,.1,.2)}
+ atlasOrder(order:string){
+  const id:SfxAudioId=order==='follow'?'atlas-order-follow':order==='attack'?'atlas-attack-bark-1':'atlas-alert'
+  this.playSample(id,.55)
+ }
+
+ atlasRunning(){
+  const now=this.context?.currentTime??0
+  if(now-this.lastAtlasMovement<.38)return
+  this.lastAtlasMovement=now
+  this.playSample('atlas-running-wet-1',.3,'effects',.92+Math.random()*.16)
+ }
+
+ atlasState(state:'idle'|'searching'|'alert'){
+  const now=this.context?.currentTime??0
+  if(state==='alert'){
+   if(now-this.lastAtlasAlert<3.5)return
+   this.lastAtlasAlert=now
+   this.playSample('atlas-alert',.42)
+   return
+  }
+  if(now-this.lastAtlasIdle<(state==='searching'?5:8))return
+  this.lastAtlasIdle=now
+  this.playSample(state==='searching'?'atlas-searching':'atlas-idle-breathing',state==='searching'?.3:.2)
+ }
+
+ atlasAttack(){
+  const now=this.context?.currentTime??0
+  if(now-this.lastAtlasAttack<.9)return
+  this.lastAtlasAttack=now
+  const roll=Math.random()
+  const id:SfxAudioId=roll<.35?'atlas-bite-zombie-1':roll<.62?'atlas-attack-combo-1':roll<.82?'atlas-attack-bark-1':'atlas-attack-growl-1'
+  this.playSample(id,.62,'effects',.94+Math.random()*.12)
+ }
+
+ atlasHurt(down=false){
+  const now=this.context?.currentTime??0
+  if(!down&&now-this.lastAtlasHurt<1.1)return
+  this.lastAtlasHurt=now
+  if(down)this.lastAtlasRecovering=now
+  this.playSample(down?'atlas-down':'atlas-hurt-1',down?.65:.48)
+ }
+
+ atlasRecovering(){
+  const now=this.context?.currentTime??0
+  if(now-this.lastAtlasRecovering<4.5)return
+  this.lastAtlasRecovering=now
+  this.playSample('atlas-recovering',.28)
+ }
+
+ atlasRecovered(){this.playSample('atlas-recovered',.55)}
+ bark(){this.atlasAttack()}
  spark(){this.hiss(3500,.12,.25,'ambient')}
  radio(){this.hiss(2200,.09,.22,'radio');this.tone(900,1300,.09,.09,'radio')}
 

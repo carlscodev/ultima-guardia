@@ -38,6 +38,19 @@ export const SFX_AUDIO = {
   'zombie-growl-4': `${base}audio/sfx/zombie-growl-4.wav`,
   'zombie-growl-5': `${base}audio/sfx/zombie-growl-5.wav`,
   'ambient-drone': `${base}audio/sfx/ambient-drone.wav`,
+  'atlas-alert': `${base}audio/atlas/atlas-alert.wav`,
+  'atlas-attack-bark-1': `${base}audio/atlas/atlas-attack-bark-1.wav`,
+  'atlas-attack-combo-1': `${base}audio/atlas/atlas-attack-combo-1.wav`,
+  'atlas-attack-growl-1': `${base}audio/atlas/atlas-attack-growl-1.wav`,
+  'atlas-bite-zombie-1': `${base}audio/atlas/atlas-bite-zombie-1.wav`,
+  'atlas-down': `${base}audio/atlas/atlas-down.wav`,
+  'atlas-hurt-1': `${base}audio/atlas/atlas-hurt-1.wav`,
+  'atlas-idle-breathing': `${base}audio/atlas/atlas-idle-breathing.wav`,
+  'atlas-order-follow': `${base}audio/atlas/atlas-order-follow.wav`,
+  'atlas-recovered': `${base}audio/atlas/atlas-recovered.wav`,
+  'atlas-recovering': `${base}audio/atlas/atlas-recovering.wav`,
+  'atlas-running-wet-1': `${base}audio/atlas/atlas-running-wet-1.wav`,
+  'atlas-searching': `${base}audio/atlas/atlas-searching.wav`,
 } as const
 
 export type SfxAudioId = keyof typeof SFX_AUDIO
