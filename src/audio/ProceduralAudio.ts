@@ -1,4 +1,5 @@
 import { DIALOGUE_AUDIO, type DialogueAudioId } from '@/audio/dialogues'
+import { MUSIC_TRACKS } from '@/audio/music'
 import { SFX_AUDIO, type SfxAudioId } from '@/audio/sfx'
 import type { WeaponKind } from '@/types/game'
 
@@ -12,10 +13,15 @@ export class ProceduralAudio {
  private noise:AudioBuffer|null=null
  private muted=false
  private muffled=false
- private volumes={effects:.6,ambient:.35,radio:.5}
+ private volumes={effects:.6,ambient:.35,radio:.5,music:.3}
  private nodes=0
  private readonly dialogueClips=new Map<DialogueAudioId,HTMLAudioElement>()
  private currentVoice:HTMLAudioElement|null=null
+ private music:HTMLAudioElement|null=null
+ private musicIndex=-1
+ private musicRequested=false
+ private readonly musicUnlock=()=>{void this.playMusic()}
+ private readonly musicEnded=()=>{this.chooseNextMusic();void this.playMusic()}
  private readonly samples=new Map<SfxAudioId,AudioBuffer>()
  private sampleLoading:Promise<void>|null=null
  private lastImpact=-100
@@ -35,17 +41,61 @@ export class ProceduralAudio {
    clip.load()
    this.dialogueClips.set(id,clip)
   }
+  this.music=new Audio()
+  this.music.preload='auto'
+  this.music.addEventListener('ended',this.musicEnded)
  }
 
  setMuted(muted:boolean){
   this.muted=muted
   if(this.master&&this.context)this.master.gain.setTargetAtTime(muted?0:.2,this.context.currentTime,.03)
   this.updateVoiceVolume()
+  this.updateMusicVolume()
  }
 
- volumesSet(effects:number,ambient:number,radio:number){
-  this.volumes={effects:effects/100,ambient:ambient/100,radio:radio/100}
+ volumesSet(effects:number,ambient:number,radio:number,music:number){
+  this.volumes={effects:effects/100,ambient:ambient/100,radio:radio/100,music:music/100}
   this.updateVoiceVolume()
+  this.updateMusicVolume()
+ }
+
+ startMusic(){
+  if(!this.music||this.musicRequested)return
+  this.musicRequested=true
+  this.chooseNextMusic()
+  if(typeof window!=='undefined'){
+   window.addEventListener('pointerdown',this.musicUnlock,true)
+   window.addEventListener('keydown',this.musicUnlock,true)
+  }
+  void this.playMusic()
+ }
+
+ private chooseNextMusic(){
+  if(!this.music)return
+  let next=Math.floor(Math.random()*MUSIC_TRACKS.length)
+  if(MUSIC_TRACKS.length>1&&next===this.musicIndex)next=(next+1+Math.floor(Math.random()*(MUSIC_TRACKS.length-1)))%MUSIC_TRACKS.length
+  this.musicIndex=next
+  this.music.src=MUSIC_TRACKS[next]!
+  this.music.currentTime=0
+  this.music.load()
+  this.updateMusicVolume()
+ }
+
+ private async playMusic(){
+  if(!this.music||!this.musicRequested)return
+  try{await this.music.play();this.removeMusicUnlockListeners()}catch{/* El navegador espera la primera interacción del usuario. */}
+ }
+
+ private removeMusicUnlockListeners(){
+  if(typeof window==='undefined')return
+  window.removeEventListener('pointerdown',this.musicUnlock,true)
+  window.removeEventListener('keydown',this.musicUnlock,true)
+ }
+
+ private updateMusicVolume(){
+  if(!this.music)return
+  this.music.muted=this.muted
+  this.music.volume=Math.max(0,Math.min(1,this.volumes.music))
  }
 
  async unlock(){
@@ -227,6 +277,8 @@ export class ProceduralAudio {
 
  dispose(){
   this.stopDialogue()
+  this.removeMusicUnlockListeners()
+  if(this.music){this.music.pause();this.music.removeEventListener('ended',this.musicEnded);this.music.removeAttribute('src');this.music.load();this.music=null}
   for(const clip of this.dialogueClips.values()){clip.removeAttribute('src');clip.load()}
   this.dialogueClips.clear();this.samples.clear();this.sampleLoading=null
   void this.context?.close();this.context=null
